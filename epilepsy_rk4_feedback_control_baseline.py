@@ -17,7 +17,15 @@ from multiple_models_AR_epilepsy import A_cont
 rc('font', **{'family':'sans-serif','sans-serif':['Helvetica']})
 rc('text', usetex=True)
 
-#%% Parâmetros de simulação:
+# Make the system underactuated:
+B[0][0] = 1
+B[1][1] = 0
+B[2][2] = 0 
+B[3][3] = 0 
+B[4][4] = 0 
+B[5][5] = 0
+
+#%% Parameters of simulation:
 Nm = len(A_cont[0])
 Fs = 1000
 dt = 1/Fs
@@ -32,38 +40,38 @@ n_sim = len(sig_part2)
 
 X = np.zeros((Nm, n_sim))
 Err = np.zeros((Nm, n_sim))
-Em = np.zeros((Nm, n_sim))
-
-unc_fac = 0.1
-Err[:,0] = np.ones(Nm)*unc_fac
-X[:,0] = np.array(final_signal_cut[:Nm]) + Err[0,0]
+Err[:,0] = np.ones(Nm)*(0.002)
 F = np.zeros((Nm, n_sim))
+X[:,0] = obs_sig[:Nm]
 
-#%% Conjunto de equações diferenciais:
+#%% State-space representation:
 def __dXdt__( Xd, Ed, Xc, g, xh, counter ):
     Xd = np.reshape(Xd, (-1,1))
     Ed = np.reshape(Ed, (-1,1))
     
     # Response:
-    A = A_cont[counter]
-    Ae = (A - L*C)
+    A = A_cont[counter]    
+    p1 = A.dot(Xd) 
+    
+    # Error dynamics:
+    LC = L.dot(C)
+    Ae = (A - LC)
     error = Ae.dot(Ed)
     sol_error = np.reshape(error,(-1,))
     
-    p1 = A.dot(Xd) 
-    
     # Observer:
     y_tilde = X_c - Xd
-    p2 = L*C*y_tilde 
+    p2 = LC.dot(y_tilde)
     
     # Observer + controller:
-    Fc = -g * B * G * (Xd - xh)
+    BG = B.dot(G)
+    Fc = -g[0] * BG.dot(Xd) + g[1] * BG.dot(xh)
     sol = p1 + p2 + Fc
     sol = np.reshape(sol,(-1,))
     
     return sol, sol_error, Fc
     
-#%% Runge-Kutta de 4a ordem:    
+#%% 4th order Runge-Kutta algorithm:    
 window = 5000
 n_cells = int(np.floor(n_sim/window))
 X_c = np.zeros((Nm,1))    
@@ -73,15 +81,13 @@ counter = 0
 cnt = []
 error_v = []
 
-
-g = 0
+g = [0,0] # Non-hybrid: [1, 1.55] / Hybrid: [1, 2] 
 n_sim = aux[-1]*window
-
 
 for k in range(0,n_sim):   
     print(str(k))  
     if k >= n_sim//2:
-        g = 1
+        g = [1,1.55]
     
     # Observed signal (seizure):
     X_c[0] = final_signal_cut[k]
@@ -336,121 +342,123 @@ plt.grid()
 
 #%% Spectrogram:
 
-## 0.1, 0.025
-#
-#window = 0.0125/2
-#superpos = 0.0125/4
-#
-#plt.figure(5)
-#plt.subplot(312)
-#Pxx, freqs, bins, im = plt.specgram(X[0,:n_sim], NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
-#plt.plot(dt*(n_sim//2)*np.ones(1000), np.linspace(0,50,1000), 'k--')
-#plt.xlabel('$t$ $[s]$', fontsize = 25)
-#plt.ylabel('$f$ $[Hz]$', fontsize = 25)
-##plt.title('$x_{1}$', fontsize = 25)
-#plt.tick_params(axis='both', which='major', labelsize=20) 
-##plt.xlim(0,200)
-#plt.ylim(0,50)
+# 0.1, 0.025
+
+window = 0.0125/2
+superpos = 0.0125/4
+
+plt.figure(5)
+plt.subplot(312)
+Pxx, freqs, bins, im = plt.specgram(X[0,:n_sim], NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
+plt.plot(dt*(n_sim//2)*np.ones(1000), np.linspace(0,50,1000), 'k--')
+plt.xlabel('$t$ $[s]$', fontsize = 25)
+plt.ylabel('$f$ $[Hz]$', fontsize = 25)
+#plt.title('$x_{1}$', fontsize = 25)
+plt.tick_params(axis='both', which='major', labelsize=20) 
+#plt.xlim(0,200)
+plt.ylim(0,50)
+cbar = plt.colorbar()
+cbar.ax.tick_params(labelsize=20) 
+
+
+plt.subplot(313)
+Pxx, freqs, bins, im = plt.specgram(X[0,:n_sim], NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
+plt.plot(dt*(n_sim//2)*np.ones(1000), np.linspace(0,50,1000), 'k--')
+plt.xlabel('$t$ $[s]$', fontsize = 25)
+plt.ylabel('$f$ $[Hz]$', fontsize = 25)
+#plt.title('$x_{1}$', fontsize = 25)
+plt.tick_params(axis='both', which='major', labelsize=20) 
+#plt.xlim(0,200)
+plt.ylim(0,50)
 #cbar = plt.colorbar()
 #cbar.ax.tick_params(labelsize=20) 
-#
-#
-#plt.subplot(313)
-#Pxx, freqs, bins, im = plt.specgram(X[0,:n_sim], NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
-#plt.plot(dt*(n_sim//2)*np.ones(1000), np.linspace(0,50,1000), 'k--')
+
+#plt.subplot(132)
+#Pxx, freqs, bins, im = plt.specgram(sig_part1, NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
+#    
 #plt.xlabel('$t$ $[s]$', fontsize = 25)
 #plt.ylabel('$f$ $[Hz]$', fontsize = 25)
-##plt.title('$x_{1}$', fontsize = 25)
+#plt.title('$x_{1}$', fontsize = 25)
 #plt.tick_params(axis='both', which='major', labelsize=20) 
 ##plt.xlim(0,200)
-#plt.ylim(0,50)
-##cbar = plt.colorbar()
-##cbar.ax.tick_params(labelsize=20) 
+#plt.ylim(0,100)
 #
-##plt.subplot(132)
-##Pxx, freqs, bins, im = plt.specgram(sig_part1, NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
-##    
-##plt.xlabel('$t$ $[s]$', fontsize = 25)
-##plt.ylabel('$f$ $[Hz]$', fontsize = 25)
-##plt.title('$x_{1}$', fontsize = 25)
-##plt.tick_params(axis='both', which='major', labelsize=20) 
-###plt.xlim(0,200)
-##plt.ylim(0,100)
-##
-##plt.subplot(133)
-##Pxx, freqs, bins, im = plt.specgram(X[0,:], NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
-##    
-##plt.xlabel('$t$ $[s]$', fontsize = 25)
-##plt.ylabel('$f$ $[Hz]$', fontsize = 25)
-##plt.title('$x_{1}$', fontsize = 25)
-##plt.tick_params(axis='both', which='major', labelsize=20) 
-###plt.xlim(0,200)
-##plt.ylim(0,100)
+#plt.subplot(133)
+#Pxx, freqs, bins, im = plt.specgram(X[0,:], NFFT=int(n_sim*window), Fs=Fs, noverlap=int(n_sim*superpos),cmap='jet')
+#    
+#plt.xlabel('$t$ $[s]$', fontsize = 25)
+#plt.ylabel('$f$ $[Hz]$', fontsize = 25)
+#plt.title('$x_{1}$', fontsize = 25)
+#plt.tick_params(axis='both', which='major', labelsize=20) 
+##plt.xlim(0,200)
+#plt.ylim(0,100)
 
 #%% Input:
-##n_interval_inp = 20000
-##n_sim_ini_inp = n_sim//2
-##n_sim_fin_inp = n_sim//2 + n_interval_inp
-##t_inp = np.linspace(dt*(n_sim_ini_inp - 1), dt*n_sim_fin_inp, n_interval_inp)
-#
 #n_interval_inp = 20000
-#n_sim_ini_inp = 332000
-#n_sim_fin_inp = n_sim_ini_inp + n_interval_inp
+#n_sim_ini_inp = n_sim//2
+#n_sim_fin_inp = n_sim//2 + n_interval_inp
 #t_inp = np.linspace(dt*(n_sim_ini_inp - 1), dt*n_sim_fin_inp, n_interval_inp)
-#
-## Controlled activity:
-#plt.figure(6)
-#plt.subplot(221)
-##plt.plot(t_inp, sig_part2[n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'b',linewidth=1)
-#plt.plot(t_inp, X[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'g-.',linewidth=1)
-#plt.xlim(332,352)
-#plt.ylim(-0.4,0.15)
-#plt.ylabel('$mV$', fontsize = 25)
-#plt.tick_params(axis='both', which='major', labelsize=25) 
-#plt.grid()
-#
-#plt.subplot(222)
-##plt.plot(t_inp, sig_part2[n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'b',linewidth=1)
-#plt.plot(t_inp, X[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'g-.',linewidth=1)
-#plt.xlim(336,342)
-#plt.ylim(-0.4,0.15)
-#plt.ylabel('$mV$', fontsize = 25)
-#plt.tick_params(axis='both', which='major', labelsize=25) 
-#plt.grid()
-#
-## Input:
-#plt.subplot(223)
-#plt.plot(t_inp, F[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'m-.', linewidth=1)
-#plt.xlim(336,352)
-#plt.ylim(-500,700)
-#plt.xlabel('$t$ $[s]$', fontsize = 25)
-#plt.ylabel(r'$F_{1}(t)$ $[mV]$', fontsize = 25)
-#plt.tick_params(axis='both', which='major', labelsize=25) 
-#plt.grid()
-#
-#plt.subplot(224)
-##plt.plot( t_inp, -*np.ones(len(t_inp)),  ':', color='darkorange', linewidth=2 )
-##plt.plot( t_inp, -*np.ones(len(t_inp)), ':', color='darkorange', linewidth=2 )
-#plt.plot(t_inp, F[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'m-.', linewidth=1)
-#plt.xlim(336,342)
-#plt.ylim(-500,700)
-#plt.xlabel('$t$ $[s]$', fontsize = 25)
-#plt.ylabel(r'$F_{1}(t)$ $[mV]$', fontsize = 25)
-#plt.tick_params(axis='both', which='major', labelsize=25) 
-#plt.grid()
-#
-#
-## hybrid:    -503.0650045373841 --> -341.43150261441644
-## non-hybrid: 634.4539343518549 --> -504.3370536906516
+
+n_interval_inp = 20000
+n_sim_ini_inp = 332000
+n_sim_fin_inp = n_sim_ini_inp + n_interval_inp
+t_inp = np.linspace(dt*(n_sim_ini_inp - 1), dt*n_sim_fin_inp, n_interval_inp)
+
+# Controlled activity:
+plt.figure(6)
+plt.subplot(221)
+plt.plot(t_inp, sig_part2[n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'b',linewidth=1)
+plt.plot(t_inp, X[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'r--',linewidth=1)
+plt.xlim(340,350)
+plt.ylim(-0.35,0.1)
+plt.ylabel('$mV$', fontsize = 25)   
+plt.tick_params(axis='both', which='major', labelsize=25) 
+plt.grid()
+
+plt.subplot(222)
+plt.plot(t_inp, sig_part2[n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'b',linewidth=1)
+plt.plot(t_inp, X[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'r--',linewidth=1)
+plt.xlim(345,347)
+plt.ylim(-0.35,0.1)
+plt.ylabel('$mV$', fontsize = 25)
+plt.tick_params(axis='both', which='major', labelsize=25) 
+plt.grid()
+
+# Input:
+plt.subplot(223)
+plt.plot(t_inp, F[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'k', linewidth=1)
+plt.xlim(340,350)
+plt.ylim(-1500,800)
+plt.xlabel('$t$ $[s]$', fontsize = 25)
+plt.ylabel(r'$F_{1}(t)$ $[mV]$', fontsize = 25)
+plt.tick_params(axis='both', which='major', labelsize=25) 
+plt.grid()
+
+plt.subplot(224)
+#plt.plot( t_inp, -*np.ones(len(t_inp)),  ':', color='darkorange', linewidth=2 )
+#plt.plot( t_inp, -*np.ones(len(t_inp)), ':', color='darkorange', linewidth=2 )
+plt.plot(t_inp, F[0,n_sim_ini_inp - 1 : n_sim_fin_inp - 1],'k', linewidth=1)
+plt.xlim(345,347)
+plt.ylim(-1500,800)
+plt.xlabel('$t$ $[s]$', fontsize = 25)
+plt.ylabel(r'$F_{1}(t)$ $[mV]$', fontsize = 25)
+plt.tick_params(axis='both', which='major', labelsize=25) 
+plt.grid()
+
+# Hybrud:       
+# Non-hybrid: 
+
+# hybrid:       -850 --> -595
+# non-hybrid: -1480 --> -740
 
 #%% PSD:
 window = 5000
 
-# Referências:
+# References:
 ref_II  = sig_part1[n_sim//2:n_sim] 
 ref_PIS = np.array(final_signal_cut[:n_sim//2]) 
 
-# Testes:
+# Tests:
 signal1 = X[0,n_sim//2:n_sim] # II (controlled)
 signal2 = X[0,:n_sim//2]      # PIS (uncontrolled)
 
@@ -463,7 +471,7 @@ n_psd = int(len(signal2)//window)
 NpS = 2500
 Nlap = 500
 
-# Comparações:
+# Comparisons:
 import scipy
 
 for qq in range(0, n_psd):
@@ -609,14 +617,14 @@ plt.show()
 PCA1_test3 = eig_vec[:,0].dot(psd_sig1.T)
 PCA2_test3 = eig_vec[:,1].dot(psd_sig1.T)
 PCA3_test3 = eig_vec[:,2].dot(psd_sig1.T)
-ax.plot(PCA1_test3,PCA2_test3,PCA3_test3,'gv', linewidth=5, label='$Controlled$')
+ax.plot(PCA1_test3,PCA2_test3,PCA3_test3,'rv', linewidth=5, label='$Controlled$')
 plt.show()
 
 # Ref signal2:
 PCA1_test4 = eig_vec[:,0].dot(psd_sig2.T)
 PCA2_test4 = eig_vec[:,1].dot(psd_sig2.T)
 PCA3_test4 = eig_vec[:,2].dot(psd_sig2.T)
-ax.plot(PCA1_test4,PCA2_test4,PCA3_test4,'m^', linewidth=5, label='$Uncontrolled$')
+ax.plot(PCA1_test4,PCA2_test4,PCA3_test4,'b^', linewidth=5, label='$Uncontrolled$')
 plt.show()
 
 plt.legend(loc=1,fontsize=15)
