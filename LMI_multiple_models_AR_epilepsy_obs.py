@@ -15,7 +15,7 @@ Nm = len(A_cont[0])
 
 #%% Optimization problem:
 prob = pic.Problem()
-                        
+                       
 alpha = 0
 A_base_cvx = []     
 CC = np.zeros((1,Nm))
@@ -47,6 +47,6 @@ print('Status: ' + prob.status)
 P = np.matrix(P.value)
 M = np.matrix(M.value)
 C = np.matrix(C.value)
-L = P.I * M
+L = P.I.dot(M)
 
 P2 = P
